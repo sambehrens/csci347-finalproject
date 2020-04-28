@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.datasets import load_iris
 
-from project3.dbscan import get_neighbors, distance, dbscan
+from project.dbscan import get_neighbors, distance, dbscan
 
 
 class TestDbscan(unittest.TestCase):

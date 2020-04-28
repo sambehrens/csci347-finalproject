@@ -1,11 +1,14 @@
+import timeit
 from typing import Dict
 
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn.cluster import OPTICS
 
 from data import get_worms_data, get_barcode, get_karl, get_pig, get_world
-from project3.dbscan import dbscan
+from project.dbscan import dbscan
+from project.optics import optics, clusterize_optics
 
 plot_size = 0.25
 
@@ -74,97 +77,79 @@ def plot_by_type(data: np.ndarray, classes: np.ndarray,
     plt.show()
 
 
-def plot_dbscan_clusters(data, epsilon, min_points):
+def plot_clusters(data, results, epsilon, min_points, name, threshold=None):
     """
-    Plots the DBSCAN clusters.
+    Plots clusters.
 
-    :param data: Data to run DBSCAN on.
+    :param name:
+    :param results:
     :param epsilon: Epsilon parameter.
     :param min_points: Min points parameter.
     :return: None.
     """
-    results = dbscan(data, epsilon, min_points)
-
     labels = {-1: 'Noise'}
 
     for i, label in enumerate(np.unique(results['labels'])):
         plt.scatter(
             data[results['labels'] == label, 0],
             data[results['labels'] == label, 1],
-            s=plot_size, label=labels.get(label, f'Cluster {label}'))
+            s=plot_size, label=labels.get(label, None))
 
-    plt.title(f'Clusters found with DBSCAN '
-              f'(epsilon={epsilon}, min_points={min_points})')
-    # plt.legend(loc='lower right')
+    title = (f'{results["number_of_clusters"]} Clusters found with {name} '
+             f'(epsilon={epsilon}, min_points={min_points}, n_samples='
+             f'{len(data)}')
+
+    if threshold is not None:
+        title += f', threshold={threshold}'
+
+    plt.title = f'{title})'
+    plt.legend(loc='lower right')
     plt.show()
 
 
-def get_dbscan_results(data, epsilons, min_points):
-    """
-    Gets a matrix of cluster counts from running DBScan.
-
-    :param data: Data to run DBScan on.
-    :param epsilons: List of epsilon values to use.
-    :param min_points: List of min point values to use.
-    :return: Results of running DBScan.
-    """
-    results = []
-
-    for epsilon in epsilons:
-        epsilon_results = []
-        for min_point in min_points:
-            epsilon_results.append(
-                dbscan(data, epsilon, min_point)['number_of_clusters'])
-        results.append(epsilon_results)
-
-    return results
+def plot_dbscan(data, epsilon, min_points):
+    results = dbscan(data, epsilon, min_points)
+    plot_clusters(data, results, epsilon, min_points, 'DBSCAN')
 
 
-def analyze_dbscan():
-    """
-    Performs analysis on the results of DBScan.
-
-    :return: None.
-    """
-    epsilons = [x / 1000 for x in range(12, 22, 2)]
-    min_points = range(3, 8)
-    db_scan_results = get_dbscan_results(get_worms_data(),
-                                         epsilons, min_points)
-
-    print_markdown_rows('ε', epsilons, 'mp', min_points, db_scan_results)
-
-    dbscan_column = np.array(db_scan_results).flatten()
-
-    epsilons_column = [[e] * 5 for e in epsilons]
-    epsilons_column = np.array(epsilons_column).flatten()
-
-    min_points_column = list(min_points) * 5
-
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-
-    ax.plot_trisurf(min_points_column, epsilons_column, dbscan_column,
-                    linewidth=0.2,
-                    antialiased=True,
-                    color='lightblue')
-
-    _ = Axes3D
-
-    ax.set_xlabel('min_points')
-    ax.set_ylabel('epsilon')
-    ax.set_zlabel('# of Clusters')
-    ax.set_title('DBSCAN Cluster Count vs Parameters for Original Data')
+def plot_optics(data, epsilon, min_points, threshold):
+    reachabilities, points = optics(data, epsilon, min_points)
+    results = clusterize_optics(reachabilities, points, threshold)
+    plt.bar(np.arange(len(reachabilities)), reachabilities)
+    plt.ylabel('Reachability')
     plt.show()
+    plot_clusters(data, results, epsilon, min_points, 'OPTICS',
+                  threshold=threshold)
 
 
 def main():
     # plot_worms()
     # plot_barcode()
     # plot_by_type()
-    # data = get_barcode(n_samples=20_000)
+    # data = get_barcode(n_samples=1_000)
     # data = get_karl()
-    data = get_world()
-    plot_dbscan_clusters(data, 2.2, 5)
+    data = get_world(n_samples=5_000)
+    # plot_dbscan(data, 7, 5)
+    time = timeit.timeit(lambda: plot_optics(data,
+                                             epsilon=5,
+                                             min_points=5,
+                                             threshold=20), number=1)
+
+    # with open('time.txt', 'w') as file:
+    #     print(time, file=file)
+
+    print(f'time: {time}')
+    # result_labels = OPTICS(max_eps=50, min_samples=5).fit_predict(data)
+    #
+    # labels = {-1: 'Noise'}
+    #
+    # for i, label in enumerate(np.unique(result_labels)):
+    #     plt.scatter(
+    #         data[result_labels == label, 0],
+    #         data[result_labels == label, 1],
+    #         s=plot_size, label=labels.get(label, None))
+    #
+    # plt.show()
     pass
 
 
