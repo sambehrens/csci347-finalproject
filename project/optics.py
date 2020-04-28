@@ -7,161 +7,144 @@ from data import get_world
 from project.dbscan import distance
 
 
-class Point:
-    def __init__(self, index: int, coords: np.ndarray):
-        self.coords = coords
-        self.index = index
-        self.reachability = None
-        self.visited = False
+class Optics:
+    def __init__(self, data: np.ndarray, epsilon=float('inf'), min_points=5):
+        self.data = data
+        self.epsilon = epsilon
+        self.min_points = min_points
 
+        self.ordered_list = []
+        self.reachability_distances = {}
+        self.visited = np.zeros(len(data), dtype=bool)
 
-def get_neighbors(data: np.ndarray, points: List[Point], point: Point, epsilon):
-    """
-    Gets indexes of points less than epsilon distance away from the
-    point at index index.
+        self.core_distances = np.array(
+            [self.core_distance(i) for i in range(len(data))])
 
-    :param data: Array of points.
-    :param points:
-    :param point:
-    :param epsilon: Distance away from the point.
-    :return: Indexes of the neighbors.
-    """
-    distances = np.sqrt(np.sum((data - point.coords) ** 2, axis=1))
-    distances_within_epsilon = np.less(distances, epsilon)
-    neighbors = np.arange(len(data))[distances_within_epsilon]
-    neighbor_points = list(np.array(points)[neighbors])
-    return neighbor_points, distances[neighbors]
+    def get_neighbors(self, index):
+        """
+        Gets indexes of points less than epsilon distance away from the
+        point at index index.
 
+        :param index:
+        :return:
+        """
+        distances = np.sqrt(np.sum((self.data - self.data[index]) ** 2, axis=1))
+        distances_within_epsilon = np.less(distances, self.epsilon)
+        neighbors = np.arange(len(self.data))[distances_within_epsilon]
+        return neighbors, distances[neighbors]
 
-def core_distance(data: np.ndarray, points: List[Point], point: Point,
-                  epsilon: float, min_points: int) -> Union[float, None]:
-    """
+    def core_distance(self, index) -> Union[float, None]:
+        """
 
-    :param data:
-    :param points:
-    :param point:
-    :param epsilon:
-    :param min_points:
-    :return:
-    """
-    neighbors, distances = get_neighbors(data, points, point, epsilon)
+        :param index:
+        :return:
+        """
+        neighbors, distances = self.get_neighbors(index)
 
-    if len(neighbors) < min_points:
-        return None
+        if len(neighbors) < self.min_points:
+            return None
 
-    return np.sort(distances)[min_points - 1]
+        return np.sort(distances)[self.min_points - 1]
 
+    # function update(N, p, Seeds, eps, MinPts) is
+    def update(self, neighbors: np.ndarray, index, seeds: list) -> None:
 
-# function update(N, p, Seeds, eps, MinPts) is
-def update(neighbors: List[Point], data: np.ndarray, points: List[Point], point,
-           seeds: list, epsilon: float, min_points: int) -> None:
-    # coredist = core-distance(p, eps, MinPts)
-    core_dist = core_distance(data, points, point, epsilon, min_points)
+        # coredist = core-distance(p, eps, MinPts)
+        core_dist = self.core_distances[index]
 
-    # for each o in N
-    for neighbor in neighbors:
+        # for each o in N
+        for neighbor in neighbors:
 
-        # if o is not processed then
-        if not neighbor.visited:
+            # if o is not processed then
+            if not self.visited[neighbor]:
 
-            # new-reach-dist = max(coredist, dist(p,o))
-            new_reachability_distance = max(core_dist,
-                                            distance(point.coords,
-                                                     neighbor.coords))
+                # new-reach-dist = max(coredist, dist(p,o))
+                new_reachability_distance = max(core_dist,
+                                                distance(self.data[index],
+                                                         self.data[neighbor]))
 
-            # if o.reachability-distance == UNDEFINED then
-            if neighbor.reachability is None:
-
-                # o.reachability-distance = new-reach-dist
-                neighbor.reachability = new_reachability_distance
-
-                # Seeds.insert(o, new-reach-dist)
-                heappush(seeds,
-                         (new_reachability_distance, neighbor.index, neighbor))
-
-            # else // o in Seeds, check for improvement
-            else:
-
-                # if new-reach-dist < o.reachability-distance then
-                if new_reachability_distance < neighbor.reachability:
+                # if o.reachability-distance == UNDEFINED then
+                if neighbor not in self.reachability_distances:
 
                     # o.reachability-distance = new-reach-dist
-                    neighbor.reachability = new_reachability_distance
+                    self.reachability_distances[
+                        neighbor] = new_reachability_distance
 
-                    # Seeds.move-up(o, new-reach-dist)
-                    seeds = list(filter(lambda x: x[1] != neighbor, seeds))
-                    heapify(seeds)
-                    heappush(seeds, (
-                        new_reachability_distance, neighbor.index, neighbor))
+                    # Seeds.insert(o, new-reach-dist)
+                    heappush(seeds,
+                             (new_reachability_distance, neighbor))
 
+                # else // o in Seeds, check for improvement
+                else:
 
-def optics(data: np.ndarray, epsilon: float = float('inf'), min_points: int =
-5) -> Tuple[np.ndarray, np.ndarray]:
-    """
+                    # if new-reach-dist < o.reachability-distance then
+                    if new_reachability_distance < self.reachability_distances[
+                        neighbor]:
 
-    :param data:
-    :param epsilon:
-    :param min_points:
-    :return:
-    """
-    # reachability_distances = np.zeros(len(data))
-    # visited = np.zeros(len(data), dtype=bool)
+                        # o.reachability-distance = new-reach-dist
+                        self.reachability_distances[
+                            neighbor] = new_reachability_distance
 
-    points: List[Point] = [Point(i, coords) for i, coords in enumerate(data)]
+                        # Seeds.move-up(o, new-reach-dist)
+                        seeds = list(filter(lambda x: x[1] != neighbor, seeds))
+                        heapify(seeds)
+                        heappush(seeds, (new_reachability_distance, neighbor))
 
-    ordered_list = []
+    def run(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
 
-    # for each unprocessed point p of DB do
-    for point in points:
-        if point.visited:
-            continue
+        :return:
+        """
 
-        # N = getNeighbors(p, eps)
-        neighbors, *_ = get_neighbors(data, points, point, epsilon)
+        # for each unprocessed point p of DB do
+        for i in range(len(self.data)):
+            if self.visited[i]:
+                continue
 
-        # mark p as processed
-        point.visited = True
+            # N = getNeighbors(p, eps)
+            neighbors, *_ = self.get_neighbors(i)
 
-        # output p to the ordered list
-        ordered_list.append(point)
+            # mark p as processed
+            self.visited[i] = True
 
-        # if core-distance(p, eps, MinPts) != UNDEFINED then
-        if core_distance(data, points, point, epsilon, min_points) is not None:
+            # output p to the ordered list
+            self.ordered_list.append(i)
 
-            # Seeds = empty priority queue
-            seeds = []
+            # if core-distance(p, eps, MinPts) != UNDEFINED then
+            if self.core_distances[i] is not None:
 
-            # update(N, p, Seeds, eps, MinPts)
-            update(neighbors, data, points, point, seeds, epsilon, min_points)
+                # Seeds = empty priority queue
+                seeds = []
 
-            # for each next q in Seeds do
-            while len(seeds):
-                reachability, _, q = heappop(seeds)
+                # update(N, p, Seeds, eps, MinPts)
+                self.update(neighbors, i, seeds)
 
-                # N' = getNeighbors(q, eps)
-                q_neighbors, *_ = get_neighbors(data, points, q, epsilon)
+                # for each next q in Seeds do
+                while len(seeds):
+                    reachability, q = heappop(seeds)
 
-                # mark q as processed
-                q.visited = True
+                    # N' = getNeighbors(q, eps)
+                    q_neighbors, *_ = self.get_neighbors(q)
 
-                # output q to the ordered list
-                ordered_list.append(q)
+                    # mark q as processed
+                    self.visited[q] = True
 
-                # if core-distance(q, eps, MinPts) != UNDEFINED do
-                if core_distance(data, points, q, epsilon,
-                                 min_points) is not None:
+                    # output q to the ordered list
+                    self.ordered_list.append(q)
 
-                    # update(N', q, Seeds, eps, MinPts)
-                    update(q_neighbors, data, points, q, seeds, epsilon,
-                           min_points)
+                    # if core-distance(q, eps, MinPts) != UNDEFINED do
+                    if self.core_distances[q] is not None:
 
-    reachabilities = np.fromiter(
-        map(lambda x: x.reachability if x.reachability else 0, ordered_list),
-        dtype=float)
-    points_indices = np.fromiter(map(lambda x: x.index, ordered_list),
-                                 dtype=int)
+                        # update(N', q, Seeds, eps, MinPts)
+                        self.update(q_neighbors, q, seeds)
 
-    return reachabilities, points_indices
+        reachabilities = np.zeros(len(self.data), dtype=float)
+        for index, distance in self.reachability_distances.items():
+            reachabilities[index] = distance
+
+        point_indices = np.array(self.ordered_list)
+
+        return reachabilities, point_indices
 
 
 def clusterize_optics(reachabilities, points, threshold):
@@ -182,8 +165,8 @@ def clusterize_optics(reachabilities, points, threshold):
 
 
 def main():
-    data = get_world(n_samples=100)
-    reachabilities, points = optics(data, float('inf'), 5)
+    data = get_world(n_samples=1000)
+    reachabilities, points = Optics(data).run()
     print(reachabilities)
     print(points)
 
