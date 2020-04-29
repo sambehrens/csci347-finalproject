@@ -3,14 +3,14 @@ from typing import Dict
 
 import numpy as np
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import OPTICS
 
-from data import get_worms_data, get_barcode, get_karl, get_pig, get_world
+from data import get_worms_data, get_barcode, get_karl, get_pig, get_world, \
+    get_toy
 from project.dbscan import dbscan
-from project.optics import optics, clusterize_optics
+from project.optics import clusterize_optics, Optics
 
-plot_size = 0.25
+plot_size = 20
 
 
 def print_markdown_rows(row_title, row_labels, column_title, column_labels,
@@ -77,7 +77,7 @@ def plot_by_type(data: np.ndarray, classes: np.ndarray,
     plt.show()
 
 
-def plot_clusters(data, results, epsilon, min_points, name, threshold=None):
+def plot_clusters(data, results, epsilon, min_points, name, **kwargs):
     """
     Plots clusters.
 
@@ -93,31 +93,51 @@ def plot_clusters(data, results, epsilon, min_points, name, threshold=None):
         plt.scatter(
             data[results['labels'] == label, 0],
             data[results['labels'] == label, 1],
-            s=plot_size, label=labels.get(label, None))
+            s=plot_size, label=labels.get(label, None), marker='o')
 
-    title = (f'{results["number_of_clusters"]} Clusters found with {name} '
-             f'(epsilon={epsilon}, min_points={min_points}, n_samples='
-             f'{len(data)}')
+    title = (
+        f'{len(np.unique(results["labels"])) - 1} Clusters found with {name}\n'
+        f'(epsilon={epsilon}, min_points={min_points}, n_samples='
+        f'{len(data)}')
 
-    if threshold is not None:
-        title += f', threshold={threshold}'
+    for arg, value in kwargs.items():
+        title += f', {arg}={value}'
 
-    plt.title = f'{title})'
+    title += ')'
+
+    plt.title(title)
     plt.legend(loc='lower right')
     plt.show()
 
 
-def plot_dbscan(data, epsilon, min_points):
+def plot_dbscan(data: np.ndarray, epsilon, min_points):
     results = dbscan(data, epsilon, min_points)
     plot_clusters(data, results, epsilon, min_points, 'DBSCAN')
 
 
 def plot_optics(data, epsilon, min_points, threshold):
-    reachabilities, points = optics(data, epsilon, min_points)
-    results = clusterize_optics(reachabilities, points, threshold)
-    plt.bar(np.arange(len(reachabilities)), reachabilities)
+    reachabilities = Optics(data, epsilon, min_points).run()
+    results = clusterize_optics(reachabilities, threshold)
+
+    colors_dict = {-1: 'gray'}
+    color_options = ['g', 'y', 'darkviolet', 'salmon', 'darkorange']
+    color_swapper = 0
+    for point, label in results['labels'].items():
+        if label == -1:
+            continue
+        colors_dict[label] = color_options[color_swapper % len(color_options)]
+        color_swapper += 1
+
+    colors = [colors_dict[label] for label in results['labels'].values()]
+    plt.bar(np.arange(len(reachabilities)), reachabilities.values(),
+            color=colors)
     plt.ylabel('Reachability')
     plt.show()
+
+    label_list = np.array(
+        sorted(results['labels'].items(), key=lambda x: x[0]))[:, 1]
+    print(label_list)
+    results['labels'] = label_list
     plot_clusters(data, results, epsilon, min_points, 'OPTICS',
                   threshold=threshold)
 
@@ -128,18 +148,32 @@ def main():
     # plot_by_type()
     # data = get_barcode(n_samples=1_000)
     # data = get_karl()
-    data = get_world(n_samples=5_000)
+    data_args = {
+        'n_samples': None,
+        'resize': None
+    }
+    alg_args = {
+        'epsilon': 20,
+        'min_points': 4,
+        'threshold': 5,
+    }
+    data = get_world(**data_args)
+    # data = get_toy(**data_args)
     # plot_dbscan(data, 7, 5)
-    time = timeit.timeit(lambda: plot_optics(data,
-                                             epsilon=5,
-                                             min_points=5,
-                                             threshold=20), number=1)
+    time = timeit.timeit(lambda: plot_optics(data, **alg_args), number=1)
 
-    # with open('time.txt', 'w') as file:
-    #     print(time, file=file)
+    with open('time.txt', 'a') as file:
+        string = f'time: {time}'
+
+        for arg, value in data_args.items():
+            string += f', {arg}={value}'
+
+        for arg, value in alg_args.items():
+            string += f', {arg}={value}'
+        print(string, file=file)
 
     print(f'time: {time}')
-    # result_labels = OPTICS(max_eps=50, min_samples=5).fit_predict(data)
+    # result_labels = OPTICS(max_eps=20, min_samples=5).fit_predict(data)
     #
     # labels = {-1: 'Noise'}
     #

@@ -33,29 +33,30 @@ def get_worms_data(n_samples=10_000) -> np.ndarray:
     return resample(data, n_samples=n_samples, random_state=1)
 
 
-def get_data_from_binary_image(filename: str) -> np.ndarray:
+def get_data_from_binary_image(filename: str, resize=None) -> np.ndarray:
     """
 
     :param filename:
+    :param resize:
     :return:
     """
-    image = process_image(filename)
+    image = process_image(filename, resize)
 
     x, y = np.nonzero(image)
-
     max_x = np.max(x)
-    max_y = np.max(y)
 
     coords = np.stack((y, max_x - x), axis=1)
 
     return coords
 
 
-def get_data_from_image(filename, n_samples=10_000):
-    data = get_data_from_binary_image(filename)
+def get_data_from_image(filename, n_samples=None, resize=(80, 60)):
+    data = get_data_from_binary_image(filename, resize=resize)
 
-    return resample(data, n_samples=n_samples, random_state=1)
+    if n_samples is not None:
+        return resample(data, n_samples=n_samples, random_state=1)
 
+    return data
 
 def get_barcode(**kwargs):
     return get_data_from_image('images/barcode.jpg', **kwargs)
@@ -71,6 +72,10 @@ def get_pig(**kwargs):
 
 def get_world(**kwargs):
     return get_data_from_image('images/world.jpg', **kwargs)
+
+
+def get_toy(**kwargs):
+    return get_data_from_image('images/toy.png', **kwargs)
 
 
 if __name__ == '__main__':

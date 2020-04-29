@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from project.optics import core_distance, update, get_neighbors, optics, \
-    clusterize_optics
+from project.optics import clusterize_optics, Optics
 
 
 class Test(TestCase):
@@ -78,7 +77,7 @@ class Test(TestCase):
 30 30
 31 31
 ''')
-        reachabilities, points = optics(data, epsilon=2, min_points=2)
+        reachabilities, points = Optics(data, epsilon=100, min_points=2).run()
         plt.bar(np.arange(len(reachabilities)), reachabilities)
         plt.show()
 
@@ -89,7 +88,7 @@ class Test(TestCase):
 20 20
 21 21
 ''')
-        reachabilities, points = optics(data, epsilon=100, min_points=2)
+        reachabilities, points = Optics(data, epsilon=100, min_points=2).run()
         results = clusterize_optics(reachabilities, points, threshold=2)
 
         np.testing.assert_array_equal(np.array([0, 0, -1, 1]), results['labels'])

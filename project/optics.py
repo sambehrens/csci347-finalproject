@@ -1,14 +1,16 @@
-from heapq import heappush, heapify, heappop
 from typing import Dict, Union, Tuple, List
 
 import numpy as np
 
 from data import get_world
 from project.dbscan import distance
+from project.priority_queue import PriorityQueue
 
 
 class Optics:
     def __init__(self, data: np.ndarray, epsilon=float('inf'), min_points=5):
+        np.random.seed(1)
+        np.random.shuffle(data)
         self.data = data
         self.epsilon = epsilon
         self.min_points = min_points
@@ -47,7 +49,8 @@ class Optics:
         return np.sort(distances)[self.min_points - 1]
 
     # function update(N, p, Seeds, eps, MinPts) is
-    def update(self, neighbors: np.ndarray, index, seeds: list) -> None:
+    def update(self, neighbors: np.ndarray, index,
+               seeds: PriorityQueue) -> None:
 
         # coredist = core-distance(p, eps, MinPts)
         core_dist = self.core_distances[index]
@@ -71,26 +74,26 @@ class Optics:
                         neighbor] = new_reachability_distance
 
                     # Seeds.insert(o, new-reach-dist)
-                    heappush(seeds,
-                             (new_reachability_distance, neighbor))
+                    seeds += (new_reachability_distance, neighbor)
 
                 # else // o in Seeds, check for improvement
                 else:
 
+                    old_reachability_distance = self.reachability_distances[
+                        neighbor]
+
                     # if new-reach-dist < o.reachability-distance then
-                    if new_reachability_distance < self.reachability_distances[
-                        neighbor]:
+                    if new_reachability_distance < old_reachability_distance:
 
                         # o.reachability-distance = new-reach-dist
                         self.reachability_distances[
                             neighbor] = new_reachability_distance
 
                         # Seeds.move-up(o, new-reach-dist)
-                        seeds = list(filter(lambda x: x[1] != neighbor, seeds))
-                        heapify(seeds)
-                        heappush(seeds, (new_reachability_distance, neighbor))
+                        seeds.remove((old_reachability_distance, neighbor))
+                        seeds += (new_reachability_distance, neighbor)
 
-    def run(self) -> Tuple[np.ndarray, np.ndarray]:
+    def run(self) -> Dict[int, float]:
         """
 
         :return:
@@ -114,14 +117,14 @@ class Optics:
             if self.core_distances[i] is not None:
 
                 # Seeds = empty priority queue
-                seeds = []
+                seeds = PriorityQueue()
 
                 # update(N, p, Seeds, eps, MinPts)
                 self.update(neighbors, i, seeds)
 
                 # for each next q in Seeds do
                 while len(seeds):
-                    reachability, q = heappop(seeds)
+                    reachability, q = seeds.pop()
 
                     # N' = getNeighbors(q, eps)
                     q_neighbors, *_ = self.get_neighbors(q)
@@ -138,25 +141,38 @@ class Optics:
                         # update(N', q, Seeds, eps, MinPts)
                         self.update(q_neighbors, q, seeds)
 
-        reachabilities = np.zeros(len(self.data), dtype=float)
-        for index, distance in self.reachability_distances.items():
-            reachabilities[index] = distance
+        # reachabilities = np.zeros(len(self.data), dtype=float)
+        # for index, distance in self.reachability_distances.items():
+        #     reachabilities[index] = distance
 
-        point_indices = np.array(self.ordered_list)
+        reachability_dict = {}
+        for point in self.ordered_list:
+            reachability_dict[point] = self.reachability_distances.get(point, 0)
 
-        return reachabilities, point_indices
+        # print('number of zeros', len(reachabilities[reachabilities == 0]))
+        #
+        # point_indices = np.array(self.ordered_list)
+
+        return reachability_dict
 
 
-def clusterize_optics(reachabilities, points, threshold):
-    labels = np.empty(len(points))
+def clusterize_optics(reachabilities, threshold: float):
+    labels = {}
 
     current_label = 0
-    for i in range(len(reachabilities)):
-        if reachabilities[i] > threshold:
-            labels[points[i]] = -1
-            current_label += 1
+    incremented_last = False
+    for point, reachability in reachabilities.items():
+        if reachability > threshold:
+            labels[point] = -1
+
+            if not incremented_last:
+                current_label += 1
+                incremented_last = True
         else:
-            labels[points[i]] = current_label
+            incremented_last = False
+            labels[point] = current_label
+
+    print(labels)
 
     return {
         'number_of_clusters': len(np.unique(labels)) - 1,
@@ -165,7 +181,7 @@ def clusterize_optics(reachabilities, points, threshold):
 
 
 def main():
-    data = get_world(n_samples=1000)
+    data = get_world(n_samples=2000)
     reachabilities, points = Optics(data).run()
     print(reachabilities)
     print(points)
