@@ -6,11 +6,12 @@ from sklearn.utils import resample
 from data.image_processor import process_image
 
 
-def get_2d_data_from_file(filename) -> np.ndarray:
+def get_2d_data_from_file(filename: str) -> np.ndarray:
     """
+    Convert text file to data set.
 
-    :param filename:
-    :return:
+    :param filename: Name of file to convert.
+    :return: Data set.
     """
     relative_dir = Path(__file__).parent
     data_path = relative_dir / filename
@@ -21,24 +22,15 @@ def get_2d_data_from_file(filename) -> np.ndarray:
     return data
 
 
-def get_worms_data(n_samples=10_000) -> np.ndarray:
+def get_data_from_image(filename: str, resize=None,
+                        n_samples=None) -> np.ndarray:
     """
-    Gets the worms data set as a numpy array.
+    Get data set from image.
 
-    :param n_samples: Number of samples to re-sample.
-    :return: The numpy array.
-    """
-    data = get_2d_data_from_file('worms.txt')
-
-    return resample(data, n_samples=n_samples, random_state=1)
-
-
-def get_data_from_binary_image(filename: str, resize=None) -> np.ndarray:
-    """
-
-    :param filename:
-    :param resize:
-    :return:
+    :param filename: Name of image file.
+    :param resize: Dimensions to resize image to.
+    :param n_samples: Number of samples to re-sample to.
+    :return: Data set.
     """
     image = process_image(filename, resize)
 
@@ -47,39 +39,13 @@ def get_data_from_binary_image(filename: str, resize=None) -> np.ndarray:
 
     coords = np.stack((y, max_x - x), axis=1)
 
+    if n_samples is not None:
+        return resample(coords, n_samples=n_samples, random_state=1)
+
     return coords
 
 
-def get_data_from_image(filename, n_samples=None, resize=(80, 60)):
-    data = get_data_from_binary_image(filename, resize=resize)
-
-    if n_samples is not None:
-        return resample(data, n_samples=n_samples, random_state=1)
-
-    return data
-
-def get_barcode(**kwargs):
-    return get_data_from_image('images/barcode.jpg', **kwargs)
-
-
-def get_karl(**kwargs):
-    return get_data_from_image('images/karl.jpg', **kwargs)
-
-
-def get_pig(**kwargs):
-    return get_data_from_image('images/pig.jpg', **kwargs)
-
-
-def get_world(**kwargs):
-    return get_data_from_image('images/world.jpg', **kwargs)
-
-
-def get_toy(**kwargs):
-    return get_data_from_image('images/toy.png', **kwargs)
-
-
 if __name__ == '__main__':
-    # data = get_worms_data()
-    data = get_barcode()
+    data = get_data_from_image('images/spiral.png')
     print(data)
     print(data.shape)

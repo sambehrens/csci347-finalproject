@@ -1,4 +1,4 @@
-from typing import Dict, Union, Tuple, List
+from typing import Dict, Union, Tuple, List, Any
 
 import numpy as np
 
@@ -8,7 +8,19 @@ from project.priority_queue import PriorityQueue
 
 
 class Optics:
+    """
+    Class to create an object for runnning OPTICS.
+    Pseudo code from https://en.wikipedia.org/wiki/OPTICS_algorithm.
+    """
+
     def __init__(self, data: np.ndarray, epsilon=float('inf'), min_points=5):
+        """
+        Initialize an instance of OPTICS.
+
+        :param data: Data to run OPTICS on.
+        :param epsilon: Epsilon tunable parameter.
+        :param min_points: Min points tunable parameter.
+        """
         np.random.seed(1)
         np.random.shuffle(data)
         self.data = data
@@ -22,24 +34,25 @@ class Optics:
         self.core_distances = np.array(
             [self.core_distance(i) for i in range(len(data))])
 
-    def get_neighbors(self, index):
+    def get_neighbors(self, index: int):
         """
-        Gets indexes of points less than epsilon distance away from the
+        Get indexes of points less than epsilon distance away from the
         point at index index.
 
-        :param index:
-        :return:
+        :param index: Index of data point in data.
+        :return: Neighbors and distances to neighbors.
         """
         distances = np.sqrt(np.sum((self.data - self.data[index]) ** 2, axis=1))
         distances_within_epsilon = np.less(distances, self.epsilon)
         neighbors = np.arange(len(self.data))[distances_within_epsilon]
         return neighbors, distances[neighbors]
 
-    def core_distance(self, index) -> Union[float, None]:
+    def core_distance(self, index: int) -> Union[float, None]:
         """
+        Get the core distance of a point.
 
-        :param index:
-        :return:
+        :param index: Index of data point in data.
+        :return: Core distance of given point of None if not a core point.
         """
         neighbors, distances = self.get_neighbors(index)
 
@@ -49,8 +62,16 @@ class Optics:
         return np.sort(distances)[self.min_points - 1]
 
     # function update(N, p, Seeds, eps, MinPts) is
-    def update(self, neighbors: np.ndarray, index,
-               seeds: PriorityQueue) -> None:
+    def _update(self, neighbors: np.ndarray, index: int,
+                seeds: PriorityQueue) -> None:
+        """
+        Update the seeds priority queue.
+
+        :param neighbors: Neighbors of data point.
+        :param index: Index of data point to update.
+        :param seeds: Queue of seeds.
+        :return: None.
+        """
 
         # coredist = core-distance(p, eps, MinPts)
         core_dist = self.core_distances[index]
@@ -95,8 +116,9 @@ class Optics:
 
     def run(self) -> Dict[int, float]:
         """
+        Run the OPTICS algorithm.
 
-        :return:
+        :return: Reachabilities and ordered points from algorithm.
         """
 
         # for each unprocessed point p of DB do
@@ -120,7 +142,7 @@ class Optics:
                 seeds = PriorityQueue()
 
                 # update(N, p, Seeds, eps, MinPts)
-                self.update(neighbors, i, seeds)
+                self._update(neighbors, i, seeds)
 
                 # for each next q in Seeds do
                 while len(seeds):
@@ -139,43 +161,51 @@ class Optics:
                     if self.core_distances[q] is not None:
 
                         # update(N', q, Seeds, eps, MinPts)
-                        self.update(q_neighbors, q, seeds)
-
-        # reachabilities = np.zeros(len(self.data), dtype=float)
-        # for index, distance in self.reachability_distances.items():
-        #     reachabilities[index] = distance
+                        self._update(q_neighbors, q, seeds)
 
         reachability_dict = {}
         for point in self.ordered_list:
             reachability_dict[point] = self.reachability_distances.get(point, 0)
 
-        # print('number of zeros', len(reachabilities[reachabilities == 0]))
-        #
-        # point_indices = np.array(self.ordered_list)
-
         return reachability_dict
 
 
-def clusterize_optics(reachabilities, threshold: float):
+def clusterize_optics(reachabilities: Dict[int, float], threshold: float)\
+        -> Dict[str, Union[int, Dict[int, int]]]:
+    """
+    Make clusters from the results of running OPTICS.
+
+    :param reachabilities: Ordered points and their reachabilites.
+    :param threshold: Threshold to cluster at.
+    :return: Cluster labels and number of clusters found.
+    """
     labels = {}
 
     current_label = 0
     incremented_last = False
-    for point, reachability in reachabilities.items():
+    reachability_items = list(reachabilities.items())
+    for i, reach in enumerate(reachability_items):
+        point, reachability = reach
         if reachability > threshold:
             labels[point] = -1
 
             if not incremented_last:
                 current_label += 1
                 incremented_last = True
+
+            if i < len(reachability_items) - 1 and reachability_items[
+                i + 1][1] < threshold:
+                labels[point] = current_label
         else:
             incremented_last = False
             labels[point] = current_label
 
-    print(labels)
+    label_values = np.fromiter(labels.values(), dtype=int)
+
+    has_noise = 1 if -1 in label_values else 0
 
     return {
-        'number_of_clusters': len(np.unique(labels)) - 1,
+        'number_of_clusters': len(np.unique(label_values)) - has_noise,
         'labels': labels,
     }
 

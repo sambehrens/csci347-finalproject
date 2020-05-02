@@ -1,12 +1,10 @@
 import timeit
-from typing import Dict
+from typing import Dict, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.cluster import OPTICS
 
-from data import get_worms_data, get_barcode, get_karl, get_pig, get_world, \
-    get_toy
+from data import get_data_from_image
 from project.dbscan import dbscan
 from project.optics import clusterize_optics, Optics
 
@@ -51,36 +49,12 @@ def plot(data, name):
     plt.show()
 
 
-def plot_worms():
-    plot(get_worms_data(), 'worms')
-
-
-def plot_barcode():
-    plot(get_barcode(), 'barcode')
-
-
-def plot_by_type(data: np.ndarray, classes: np.ndarray,
-                 class_names: Dict[int, str]):
-    """
-    Plots data set according to labels.
-
-    :return: None.
-    """
-    for i, label in enumerate(np.unique(classes)):
-        plt.scatter(
-            data[classes == label, 0],
-            data[classes == label, 1],
-            s=plot_size, label=class_names[int(label)])
-
-    plt.title('Scatter plot by class')
-    plt.legend(loc='lower right')
-    plt.show()
-
-
-def plot_clusters(data, results, epsilon, min_points, name, **kwargs):
+def plot_clusters(data, results: Dict[str, Union[int, np.ndarray]],
+                  epsilon: float, min_points: int, name: str, **kwargs):
     """
     Plots clusters.
 
+    :param data:
     :param name:
     :param results:
     :param epsilon: Epsilon parameter.
@@ -95,8 +69,12 @@ def plot_clusters(data, results, epsilon, min_points, name, **kwargs):
             data[results['labels'] == label, 1],
             s=plot_size, label=labels.get(label, None), marker='o')
 
+    if -1 in np.unique(results['labels']):
+        plt.legend(loc='lower right')
+
     title = (
-        f'{len(np.unique(results["labels"])) - 1} Clusters found with {name}\n'
+        f'{results["number_of_clusters"]} Clusters found '
+        f'with {name}\n'
         f'(epsilon={epsilon}, min_points={min_points}, n_samples='
         f'{len(data)}')
 
@@ -106,7 +84,6 @@ def plot_clusters(data, results, epsilon, min_points, name, **kwargs):
     title += ')'
 
     plt.title(title)
-    plt.legend(loc='lower right')
     plt.show()
 
 
@@ -129,50 +106,35 @@ def plot_optics(data, epsilon, min_points, threshold):
         color_swapper += 1
 
     colors = [colors_dict[label] for label in results['labels'].values()]
+    plt.hlines(threshold, 0, len(results['labels']), linestyles='dashed',
+               colors='r', label='threshold')
     plt.bar(np.arange(len(reachabilities)), reachabilities.values(),
-            color=colors)
+            color=colors, snap=False)
+    plt.title('Reachabilities of ordered points')
     plt.ylabel('Reachability')
     plt.show()
 
     label_list = np.array(
         sorted(results['labels'].items(), key=lambda x: x[0]))[:, 1]
-    print(label_list)
     results['labels'] = label_list
     plot_clusters(data, results, epsilon, min_points, 'OPTICS',
                   threshold=threshold)
 
 
 def main():
-    # plot_worms()
-    # plot_barcode()
-    # plot_by_type()
-    # data = get_barcode(n_samples=1_000)
-    # data = get_karl()
     data_args = {
         'n_samples': None,
-        'resize': None
+        'resize': (80, 60)
     }
     alg_args = {
         'epsilon': 20,
-        'min_points': 4,
-        'threshold': 5,
+        'min_points': 3,
+        'threshold': 1.5,
     }
-    data = get_world(**data_args)
-    # data = get_toy(**data_args)
-    # plot_dbscan(data, 7, 5)
-    time = timeit.timeit(lambda: plot_optics(data, **alg_args), number=1)
+    data = get_data_from_image('../data/images/barcode.jpg', **data_args)
+    # plot_dbscan(data, 3.5, 2)
+    plot_optics(data, **alg_args)
 
-    with open('time.txt', 'a') as file:
-        string = f'time: {time}'
-
-        for arg, value in data_args.items():
-            string += f', {arg}={value}'
-
-        for arg, value in alg_args.items():
-            string += f', {arg}={value}'
-        print(string, file=file)
-
-    print(f'time: {time}')
     # result_labels = OPTICS(max_eps=20, min_samples=5).fit_predict(data)
     #
     # labels = {-1: 'Noise'}
