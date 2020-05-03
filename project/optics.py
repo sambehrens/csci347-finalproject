@@ -2,7 +2,6 @@ from typing import Dict, Union, Tuple, List, Any
 
 import numpy as np
 
-from data import get_world
 from project.dbscan import distance
 from project.priority_queue import PriorityQueue
 
@@ -211,10 +210,7 @@ def clusterize_optics(reachabilities: Dict[int, float], threshold: float)\
 
 
 def main():
-    data = get_world(n_samples=2000)
-    reachabilities, points = Optics(data).run()
-    print(reachabilities)
-    print(points)
+    pass
 
 
 if __name__ == '__main__':

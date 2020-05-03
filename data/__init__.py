@@ -46,6 +46,6 @@ def get_data_from_image(filename: str, resize=None,
 
 
 if __name__ == '__main__':
-    data = get_data_from_image('images/spiral.png')
-    print(data)
+    data = get_data_from_image('images/bot.png', n_samples=300)
+    print('\n'.join([' '.join(map(str, d)) for d in data]))
     print(data.shape)

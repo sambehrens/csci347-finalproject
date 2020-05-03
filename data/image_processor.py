@@ -29,7 +29,7 @@ def process_image(filename, resize: Tuple[int, int] = None):
 
 
 def main():
-    binary = process_image('images/barcode.jpg')
+    binary = process_image('images/spiral.png')
     print(binary)
     print(binary.shape)
 
